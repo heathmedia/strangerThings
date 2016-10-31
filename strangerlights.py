@@ -9,47 +9,23 @@
 
 
 # Import libs used
+import emojis
+import magic8Ball
+import sys
 import time
 import random
+import unicodedata
+import ledFunctions
+
+from ledSettings import *
 from neopixel import *
 
 #Start up random seed
 random.seed()
 
-# LED strip configuration:
-LED_COUNT      = 100      # Number of LED pixels.
-LED_PIN        = 18      # GPIO pin connected to the pixels (must support PWM!).
-LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
-LED_DMA        = 5       # DMA channel to use for generating signal (try 5)
-LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
-LED_INVERT     = False   # True to invert the signal (when using NPN transistor level shift)
-
-#Predefined Colors and Masks
-OFF = Color(0,0,0)
-WHITE = Color(255,255,255)
-RED = Color(255,0,0)
-GREEN = Color(0,255,0)
-BLUE = Color(0,0,255)
-PURPLE = Color(128,0,128)
-YELLOW = Color(255,255,0)
-ORANGE = Color(255,50,0)
-TURQUOISE = Color(64,224,208)
-RANDOM = Color(random.randint(0,255),random.randint(0,255),random.randint(0,255))
-
-#list of colors, tried to match the show as close as possible
-COLORS = [YELLOW,GREEN,RED,BLUE,ORANGE,TURQUOISE,GREEN,
-          YELLOW,PURPLE,RED,GREEN,BLUE,YELLOW,RED,TURQUOISE,GREEN,RED,BLUE,GREEN,ORANGE,
-          YELLOW,GREEN,RED,BLUE,ORANGE,TURQUOISE,RED,BLUE, 
-          ORANGE,RED,YELLOW,GREEN,PURPLE,BLUE,YELLOW,ORANGE,TURQUOISE,RED,GREEN,YELLOW,PURPLE,
-          YELLOW,GREEN,RED,BLUE,ORANGE,TURQUOISE,GREEN,BLUE,ORANGE] 
-
-#bitmasks used in scaling RGB values
-REDMASK = 0b111111110000000000000000
-GREENMASK = 0b000000001111111100000000
-BLUEMASK = 0b000000000000000011111111
 
 # Other vars
-ALPHABET = '*******abcdefghijklm********zyxwvutsrqpon*********'  #alphabet that will be used
+ALPHABET = '****z*y**x*w**v***u**t***s**r*********i***j**k**l*m**n***o**p**q********h****g**f****e****d*c***b**a'  #alphabet that will be used
 LIGHTSHIFT = 0  #shift the lights down the strand to the other end 
 FLICKERLOOP = 3  #number of loops to flicker
 
@@ -69,7 +45,48 @@ def initLights(strip):
     strip.setPixelColor(i+LIGHTSHIFT, COLORS[i%colorLen])
   strip.show()
 
-def blinkWords(strip, word):
+def getRandomNamedColor():
+  """
+  returns a random Color object
+  inputs:
+    <none>
+  outputs:
+    Color()
+  """
+  index = random.randint(0, len(NAMED_COLORS)-1)
+  return NAMED_COLORS[index]
+
+def randomDisplay(strip):
+  routines = [runBlink,
+    runDance,
+    runItsHere]
+
+  randomFunction = random.choice(routines)
+  randomFunction(strip)
+
+def randomColorWipe(strip):
+  ledFunctions.colorWipe(getRandomNamedColor())
+                           
+
+def crazyBlinking(strip):
+  """
+  Blink the lights like crazy.
+  """
+  #now frantically blink all lights 
+  for loop in range(7):
+    #initialize all the lights
+    initLights(strip)
+
+    time.sleep(random.randint(50,150)/1000.0)
+
+    #kill all lights
+    for led in range(len(ALPHABET)):
+      strip.setPixelColor(led+LIGHTSHIFT, OFF)
+    strip.show()
+
+    time.sleep(random.randint(50,150)/1000.0)
+
+def blinkWords(strip, word, wait_ms=1000):
   """
   blinks a string of letters
 
@@ -80,31 +97,34 @@ def blinkWords(strip, word):
   outputs:
     <none>
   """
-  #create a list of jumbled ints
-  s = list(range(len(ALPHABET)))
-  random.shuffle(s)
 
-  #first, kill all lights in a semi-random fashion
-  for led in range(len(ALPHABET)):
-    strip.setPixelColor(s[led]+LIGHTSHIFT, OFF)
-    strip.show()
-    time.sleep(random.randint(10,80)/1000.0)
-
-  #quick delay
-  time.sleep(1.75)
-
-  #if letter in alphabet, turn on 
-  #otherwise, stall
-  for character in word:
-    if character in ALPHABET:
-      strip.setPixelColor(ALPHABET.index(character)+LIGHTSHIFT, RED)
-      strip.show()
-      time.sleep(1)
-      strip.setPixelColor(ALPHABET.index(character)+LIGHTSHIFT, OFF)
-      strip.show()
-      time.sleep(.5)
-    else:
-      time.sleep(.75)
+  # Delay before showing message
+  time.sleep(wait_ms/1000.0)
+  
+  word = word.lower()
+  if word == 'where are you' or word == 'where are you?':
+    word = '' # Prevent the question from displaying
+    blinkWords(strip, 'right here')
+  if word[len(word)-1] == '?':
+    word = '' # Prevent the question from displaying
+    magic8BallUsed = True
+    blinkWords(strip, random.choice(magic8Ball.answers))
+  else:
+    for character in word.lower():
+      charName = unicodedata.name(character)
+      print(charName)
+      if character in ALPHABET:
+        strip.setPixelColor(ALPHABET.index(character)+LIGHTSHIFT, getRandomNamedColor())
+        strip.show()
+        time.sleep(1)
+        strip.setPixelColor(ALPHABET.index(character)+LIGHTSHIFT, OFF)
+        strip.show()
+        time.sleep(.25)
+      if charName in emojis.EMOJIS:
+        print("Supported Emoji")
+        emojis.runEmojiSequence(strip, charName)
+      else:
+        time.sleep(.75)
 
 def flicker(strip, ledNo):
   """
@@ -156,7 +176,13 @@ def flicker(strip, ledNo):
   #restore original LED color
   strip.setPixelColor(ledNo, origColor)
 
-def runBlink(strip):
+def runDance(strip):
+  runBlink(strip, "dance")
+
+def runItsHere(strip):
+  runBlink(strip, "its here")
+
+def runBlink(strip, word='run'):
   """
   blinks the RUN letters
 
@@ -166,7 +192,6 @@ def runBlink(strip):
   outputs:
     <none>
   """
-  word = "run"
   #first blink the word "run", one letter at a time
   blinkWords(strip, word)
 
@@ -215,9 +240,9 @@ if __name__ == '__main__':
   while True:
 
     ##Initialize all LEDs
-    #for i in range(len(ALPHABET)):
-    #  strip.setPixelColor(i+LIGHTSHIFT, Color(random.randint(0,255),random.randint(0,255),random.randint(0,255)))
-    #  strip.show()
+    for i in range(len(ALPHABET)):
+      strip.setPixelColor(i+LIGHTSHIFT, Color(random.randint(0,255),random.randint(0,255),random.randint(0,255)))
+      strip.show()
 
     #initialize all the lights
     initLights(strip)
