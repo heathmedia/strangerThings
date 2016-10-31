@@ -6,6 +6,7 @@ from flask import request
 from twilio import twiml
 app = Flask(__name__)
 
+# Connect to the Monog database. This DB needs a single collection called 'messages'.
 client = pymongo.MongoClient("localhost", 27017)
 db = client.local
 
@@ -21,12 +22,13 @@ def addGet():
 @app.route('/add', methods=['POST'])
 def add():
 	try:
-		# Save message to Firebase dastabase
+		# Save message to Monog database
 		x = db.messages.insert({"unread": True, "body": request.form['Body']})
 		print request.form['Body']
 		print x
 
-		# TODO: Format proper return twiml
+		# TODO: Format proper return twiml. The display will function without this
+    # but you will see errors in the Twilio console.
 		return "Message added"
 	except Exception as e:
 		print(e)
